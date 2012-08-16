@@ -48,7 +48,8 @@ import weakref
 import atexit
 import unittest
 from datetime import datetime
-
+from clint.textui import puts, colored
+import readline
 import numpy
 import pexpect
 
@@ -56,6 +57,7 @@ import pexpect
 now = datetime.now
 __version__ = '0.2.4+'
 STR_DELIMITER = '!@#'  # To distinguish items in an array of strings
+IDL_ESC = '\x04'
 try:
     __IPYTHON__
     _ipython = True
@@ -348,7 +350,7 @@ class IDL(pexpect.spawn):
             print self.idl_prompt,
         sys.stdout.flush()
         if not kwargs.has_key('escape_character'):
-            kwargs['escape_character'] = '\x04'
+            kwargs['escape_character'] = IDL_ESC
         pexpect.spawn.interact(self, **kwargs)
         if not _ipython:
             print ""
@@ -746,8 +748,8 @@ class IDL(pexpect.spawn):
 
     # Receiving from IDL
 
-
-    def _wait_for_prompt(self, print_output=False, user_wait=False):
+    
+    def _wait_for_prompt(self, print_output=False):
         """Read IDL output until IDL prompt displayed and return."""
         index = 1
         output_lines = []
@@ -755,26 +757,27 @@ class IDL(pexpect.spawn):
         halt = False
         while index == 1:
             try:
-                # 0: waiting for input, 1: output received, 2: IDL exited
-                index = self.expect([self.idl_prompt, '\n', pexpect.EOF])
-            except pexpect.TIMEOUT:
-                print "\npIDLy: TIMEOUT"
-                if not _ipython:
-                    print self.before
-                    sys.stdout.flush()
-                if user_wait:
-                  # broken to fix
-                    self.ex(raw_input(), print_output=print_output)
-                # self.interact(show_prompt=False)
-                break
-            except KeyboardInterrupt:
-                print "\npIDLy: KeyboardInterrupt"
-                if not _ipython:
-                    print self.before
-                    sys.stdout.flush()
-                self.interact(show_prompt=False)
-                break
-            new_line = self.before.replace('\r', '')
+                # 0: waiting for input, 1: output received, 2: IDL exited, 3: userprompt
+                index = self.expect([self.idl_prompt, '\n', pexpect.EOF, ': $'])
+            except:
+                raise
+            # except KeyboardInterrupt:
+            #     print "\npIDLy: KeyboardInterrupt"
+            #     if not _ipython:
+            #         print self.before
+            #         sys.stdout.flush()
+            #     self.interact(show_prompt=False)
+            #     break
+            # new_line = self.before.replace('\r', '')
+            new_line = self.before.strip()
+            # print '%d -- [%s]'%(index, new_line)
+            if index == 3:
+              # assume ": " at the end of the line is a prompt
+              print self.before
+              sys.stdout.flush()
+              # puts(colored.green('<enter text>: '), newline=False)
+              self.sendline(raw_input(colored.green('<enter text>: ')))
+              index = 1 # ok we handled the prompt, now get any output
             if new_line.startswith('% Stop encountered:'):
                 stop = True
             if new_line.startswith('% Execution halted at:'):
@@ -786,7 +789,8 @@ class IDL(pexpect.spawn):
         if halt or stop:
             if not print_output:  # print output anyway
                 print '\n'.join(output_lines)
-            self.interact()
+            # self.interact(input_filter=retall)
+            return 'error'
         return '\n'.join(output_lines)
         
 
