@@ -747,7 +747,7 @@ class IDL(pexpect.spawn):
     # Receiving from IDL
 
 
-    def _wait_for_prompt(self, print_output=False):
+    def _wait_for_prompt(self, print_output=False, user_wait=False):
         """Read IDL output until IDL prompt displayed and return."""
         index = 1
         output_lines = []
@@ -762,7 +762,9 @@ class IDL(pexpect.spawn):
                 if not _ipython:
                     print self.before
                     sys.stdout.flush()
-                self.ex(raw_input(), print_output=print_output)
+                if user_wait:
+                  # broken to fix
+                    self.ex(raw_input(), print_output=print_output)
                 # self.interact(show_prompt=False)
                 break
             except KeyboardInterrupt:
