@@ -196,7 +196,9 @@ class IDL(pexpect.spawn):
                                                    249)
 
         # Custom IDL prompt
-        self.idl_prompt = kwargs.pop('idl_prompt', 'IDL> ')
+        # self.idl_prompt = kwargs.pop('idl_prompt', 'IDL> ')
+        # a better IDL prompt that handles "host:directory> " setup
+        self.idl_prompt = kwargs.pop('idl_prompt', r'[:\w]+> ')
         
         # Begin
         if len(arguments) == 0:
@@ -204,6 +206,8 @@ class IDL(pexpect.spawn):
         if not kwargs.has_key('timeout'):
             kwargs['timeout'] = None
         pexpect.spawn.__init__(self, *arguments, **kwargs)
+        
+        
         self.delaybeforesend = self.short_delay  # Changed for long commands
         self._wait_for_prompt()
 
@@ -212,6 +216,15 @@ class IDL(pexpect.spawn):
 
         self.ready = True  # For __setattr__
 
+    def __enter__(self):
+      """WITH constructor ... init handles everything, so lets just start"""
+      print 'Starting IDL...'
+      return self
+
+    def __exit__(self, type, value, traceback):
+      """Make sure to close IDL if we are done.  then handles any errors"""
+      self.close()
+      return isinstance(value, TypeError)
 
     def ex(self, expression, assignment_value=None,
            print_output=True, ret=False):
@@ -459,7 +472,10 @@ class IDL(pexpect.spawn):
     def _send_expression_to_idl(self, expression):
         """Send a string to IDL and return the no. of bytes sent (or False)."""
         # Only method that sends anything to IDL
-
+        
+        # make it easy to exit
+        if expression.strip() in ['exit', 'quit']: sys.exit(0)
+        
         if len(expression) > self.max_sendline:
             if len(expression) <= self.max_idl_code_area:
                 # Long line: need to send it in chunks
@@ -741,6 +757,14 @@ class IDL(pexpect.spawn):
             try:
                 # 0: waiting for input, 1: output received, 2: IDL exited
                 index = self.expect([self.idl_prompt, '\n', pexpect.EOF])
+            except pexpect.TIMEOUT:
+                print "\npIDLy: TIMEOUT"
+                if not _ipython:
+                    print self.before
+                    sys.stdout.flush()
+                self.ex(raw_input(), print_output=print_output)
+                # self.interact(show_prompt=False)
+                break
             except KeyboardInterrupt:
                 print "\npIDLy: KeyboardInterrupt"
                 if not _ipython:
